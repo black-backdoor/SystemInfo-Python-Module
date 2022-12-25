@@ -5,6 +5,15 @@ import platform
 import GPUtil
 from datetime import datetime
 
+#for cmd based info
+import subprocess
+
+#for ip
+import socket
+
+import urllib
+from urllib.request import Request, urlopen
+
 
 def adjust_size(size):
     factor = 1024
@@ -29,17 +38,30 @@ class os_info():
 
 class device_info():
     def device_name():
-        uname = platform.uname()
-        return uname.node
+        return platform.node()
 
     def machine():
-        uname = platform.uname()
-        return uname.machine
+        return platform.machine()
+
+    def platform():
+        return platform.platform()
+
+    #only for windows
+    def hwid():
+        return str(subprocess.check_output("wmic csproduct get uuid"), "utf-8").split("\n")[1].strip()
+
+    def model():
+        return str(subprocess.check_output("wmic computersystem get model"), "utf-8").split("\n")[1].strip()
+
+    def computer_manufacturer():
+        return str(subprocess.check_output("wmic computersystem get manufacturer"), "utf-8").split("\n")[1].strip()
+
+    def systemtype():
+        return str(subprocess.check_output("wmic computersystem get systemtype"), "utf-8").split("\n")[1].strip()
 
 class cpu_info():
-    def processor_info():
-        uname = platform.uname()
-        return uname.processor
+    def processor_name():
+        return platform.processor()
 
     def cpu_number():
         return os.cpu_count()
@@ -138,8 +160,6 @@ class swap_info():
         swap = psutil.swap_memory()
         return swap.percent
 
-
-
 class system():
     def process_id():
         return os.getpid()
@@ -147,10 +167,30 @@ class system():
     def os_getenv(key):
         return os.getenv(key)
 
+    def os_environ_get(key):
+        return os.environ.get(key)
+
     def boot_time():
         boot_time_timestamp = psutil.boot_time()
         bt = datetime.fromtimestamp(boot_time_timestamp)
         return f"{bt.day}.{bt.month}.{bt.year} {bt.hour}:{bt.minute}:{bt.second}"
+
+    def username():
+        return system.os_environ_get("USERNAME")
+
+    def systeminfos():
+        infos = str(subprocess.check_output("systeminfo"), "utf-8").replace("\r", "").replace(" ", "#").split("\n")
+        systeminfos = {}
+        for i in range(0, len(infos) - 1):
+            temp = infos[i]
+            t = temp.split(":")
+            if (len(t) >= 2):
+                temp = str(t[1][::-1].rstrip("#"))[::-1]
+                systeminfos[t[0].replace("#", " ")] = temp.replace("#", " ")
+        return systeminfos
+
+    def systeminfo():
+        return str(subprocess.check_output("systeminfo"), "utf-8")
 
 class disk_info():
     def get_disk():
@@ -163,7 +203,7 @@ class disk_info():
         return p.mountpoint
 
     def disk_file_system_type(p):
-        p.fstype
+        return p.fstype
 
     def partition_total_size(p):
         try:
@@ -208,7 +248,6 @@ class network_info():
     def get_adress(address):
         return address.address
 
-
     def received_since_boot():
         net_io = psutil.net_io_counters()
         return adjust_size(net_io.bytes_recv)
@@ -221,12 +260,12 @@ class network_info():
         network_name = []
         network_address = {}
         network_netmask = {}
-        network_family =  {}
+        network_family = {}
         network_broadcast_ip = {}
         network_mac_address = {}
         network_broadcast_mac = {}
 
-        if_addrs = psutil.net_if_addrs()
+        if_addrs = network_info.get_network()
 
         for interface_name, interface_addresses in if_addrs.items():
             for address in interface_addresses:
@@ -243,9 +282,36 @@ class network_info():
                     network_broadcast_mac[interface_name] = str(address.broadcast)
         return network_name, network_address, network_netmask, network_family, network_broadcast_ip, network_mac_address, network_broadcast_mac
 
+    def internet_connection():
+        if "The wireless local area network interface is powered down and doesn't support the requested operation." in str(subprocess.getoutput('cmd /c "netsh wlan show networks"')):
+            return False
+        else:
+            return True
+
+    def public_ip():
+        try:
+            return urlopen(Request("https://api.ipify.org/")).read().decode().strip()
+        except urllib.error.URLError:
+            return False
+
+    def ip():
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect(("google.com", 80))
+            return s.getsockname()[0]
+        except socket.gaierror:
+            return False
+
+class windows():
+    def APPDATA():
+        return system.os_getenv("APPDATA")
+
+    def LOCAL_APPDATA():
+        return system.os_getenv("LOCALAPPDATA")
+
 def network():
     print("-" * 40, "Network Information", "-" * 40)
-    if_addrs = psutil.net_if_addrs()
+    if_addrs = network_info.get_network()
     for interface_name, interface_addresses in if_addrs.items():
         for address in interface_addresses:
             print(f"Interface: {interface_name}")
@@ -266,7 +332,7 @@ def info():
     print(f"Release: {os_info.os_release()}")
     print(f"Version: {os_info.os_version()}")
     print(f"Machine: {device_info.machine()}")
-    print(f"Processor: {cpu_info.processor_info()}")
+    print(f"Processor: {cpu_info.processor_name()}")
 
     print("-"*40, "Boot Time", "-"*40)
     print(f"Boot Time:{system.boot_time()}")
@@ -336,6 +402,20 @@ def info():
 
     print(f"Total Bytes Sent: {network_info.send_since_boot()}")
     print(f"Total Bytes Received: {network_info.received_since_boot()}")
+
+    print("-" * 40, "Computer", "-" * 40)
+    if(os_info.os_name() == "Windows"):
+        print(f"PC Hardware ID (hwid): {device_info.hwid()}")
+        print(f"PC Model: {device_info.model()}")
+        print(f"PC manufacturer: {device_info.computer_manufacturer()}")
+        print(f"PC Systemtype: {device_info.systemtype()}")
+
+    print("-" * 40, "INTERNET CONNECTION", "-" * 40)
+    print(f"Internet connection? {network_info.internet_connection()}")
+    INTERNET_CONNECTION = network_info.internet_connection()
+    if (INTERNET_CONNECTION):
+        print(f"PUBLIC IP: {network_info.public_ip()}")
+        print(f"IP: {network_info.ip()}")
 
     network()
 
