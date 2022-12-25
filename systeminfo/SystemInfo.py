@@ -417,6 +417,10 @@ def info():
         print(f"PUBLIC IP: {network_info.public_ip()}")
         print(f"IP: {network_info.ip()}")
 
+
+    print("-" * 40, "SYSTEM INFO", "-" * 40)
+    print(system.systeminfo())
+
     network()
 
 
