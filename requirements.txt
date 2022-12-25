@@ -4,3 +4,6 @@ psutil
 platform
 GPUtil
 datetime
+subprocess
+urllib
+requests
