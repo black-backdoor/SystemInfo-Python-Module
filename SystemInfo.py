@@ -48,16 +48,202 @@ class device_info():
 
     #only for windows
     def hwid():
-        return str(subprocess.check_output("wmic csproduct get uuid"), "utf-8").split("\n")[1].strip()
+        if (os_info.os_name() == "Windows"):
+            return str(subprocess.check_output("wmic csproduct get uuid"), "utf-8").split("\n")[1].strip()
+        elif (os_info.os_name() == "Linux"):
+            return str(subprocess.check_output(['cat', '/etc/machine-id']))
+
 
     def model():
-        return str(subprocess.check_output("wmic computersystem get model"), "utf-8").split("\n")[1].strip()
+        if(os_info.os_name() == "Windows"):
+            return str(subprocess.check_output("wmic computersystem get model"), "utf-8").split("\n")[1].strip()
+        elif(os_info.os_name() == "Linux"):
+            return str(subprocess.check_output("sudo dmidecode -s system-product-name"))
 
     def computer_manufacturer():
-        return str(subprocess.check_output("wmic computersystem get manufacturer"), "utf-8").split("\n")[1].strip()
+        if(os_info.os_name() == "Windows"):
+            return str(subprocess.check_output("wmic computersystem get manufacturer"), "utf-8").split("\n")[1].strip()
+        elif(os_info.os_name() == "Linux"):
+            return str(subprocess.check_output("sudo dmidecode -s system-manufacturer"))
 
     def systemtype():
-        return str(subprocess.check_output("wmic computersystem get systemtype"), "utf-8").split("\n")[1].strip()
+        if (os_info.os_name() == "Windows"):
+            return str(subprocess.check_output("wmic computersystem get systemtype"), "utf-8").split("\n")[1].strip()
+        elif (os_info.os_name() == "Linux"):
+            return str(subprocess.check_output("uname -m"))
+
+    def detect_virtual_machine():
+        if(os_info.os_name() == "Linux"):
+            temp = str(subprocess.check_output("sudo dmidecode | egrep -i 'manufacturer|product'")).split("\n")
+            accordance = 0
+            for i in temp:
+                i.rstrip("\n").rstrip("\r")
+                text, info = i.split(": ")
+                args = ["innotek GmbH", "VirtualBox", "Oracle Corporation", "QEMU", "Standard PC (Q35 + ICH9, 2009)"]
+                for i in args:
+                    if (args[i].lower() in info.lower):
+                        accordance += 1
+            #
+            # [Physical system]
+            #
+            # Manufacturer: Intel
+            # Manufacturer: Sanyo
+            # Manufacturer: Not Specified
+            # Manufacturer: Dell Inc.
+            # Product Name: 01HXXJ
+            # Manufacturer: Dell Inc.
+            # Manufacturer: Dell Inc.
+            # Product Name: Inspiron N5050
+            # Manufacturer: 014F
+            #
+            # [Virtual system on VirtualBox]
+            #
+            # Manufacturer: innotek GmbH
+            # Product Name: VirtualBox
+            # Manufacturer: Oracle Corporation
+            # Product Name: VirtualBox
+            # Manufacturer: Oracle Corporation
+            #
+            # [Virtual system on KVM/QEMU]
+            #
+            # Manufacturer: QEMU
+            # Product Name: Standard PC (Q35 + ICH9, 2009)
+            # Manufacturer: QEMU
+            # Manufacturer: QEMU
+            # Manufacturer: QEMU
+            # Manufacturer: QEMU
+            #
+            #
+
+            #check with sudo dmidecode -s system-manufaturer
+            if(device_info.computer_manufacturer().lower() == "innotek gmbh"):
+                #If it is virtual system created with Virtualbox
+                return True
+            elif (device_info.computer_manufacturer().lower() == "virtualbox"):
+                #If it is virtual system created with Virtualbox
+                return True
+            elif (device_info.computer_manufacturer().lower() == "QEMU"):
+                #If it is virtual system created with KVM/QEMU
+                return True
+
+            #check with sudo dmidecode -s system-product-name
+            elif (device_info.model().lower() == "virtualbox"):
+                # If it is virtual system created with Virtualbox
+                return True
+            elif (device_info.model().lower() == "standard pc (q35 + ich9, 2009)"):
+                # If it is virtual system created with KVM/QEMU
+                return True
+
+            elif("virtualbox" in str(subprocess.check_output("sudo dmidecode | grep Product")).lower()):
+                #$ sudo dmidecode | grep Product
+                #
+                #Sample output:
+                #
+                #[Physical system]
+                #
+                #Product Name: 01HXXJ
+                #Product Name: Inspiron N5050
+                #
+                #[Virtual system on VirtualBox]
+                #
+                #Product Name: VirtualBox
+                #Product Name: VirtualBox
+                #
+                #[Virtual system on KVM/QEMU]
+                #
+                #Product Name: Standard PC (Q35 + ICH9, 2009)
+                #
+                return True
+            elif(accordance >= 2):
+                return True
+            elif("innotek GmbH" in str(subprocess.check_output("sudo dmidecode | egrep -i 'vendor'"))
+                 or (
+                         "EFI Development KitOVMF" in str(subprocess.check_output("sudo dmidecode | egrep -i 'vendor'"))
+                         and "OVMF" in str(subprocess.check_output("sudo dmidecode | egrep -i 'vendor'"))
+                 )
+            ):
+                return True
+            elif("KVM" in str(subprocess.check_output('sudo dmesg | grep "Hypervisor detected"'))):
+                return True
+            elif("oracle" in str(subprocess.check_output("hostnamectl")) or "kvm" in str(subprocess.check_output("hostnamectl"))):
+                return True
+            elif("kvm" in str(subprocess.check_output("hostnamectl status")) or "oracle" in str(subprocess.check_output("hostnamectl status"))):
+                return True
+            elif("oracle" in str(subprocess.check_output("systemd-detect-virt")) or "kvm" in str(subprocess.check_output("systemd-detect-virt").lower())):
+                #
+                # [Physical machine]
+                # none
+                #
+                # [Virtual machine on VirtualBox]
+                # oracle
+                #
+                # [Virtual machine on KVM/QEMU]
+                # KVM
+                #
+                return True
+            elif():
+                return True
+            #
+            # [Physical system]
+            #
+            # Static hostname: sk
+            # Icon name: computer-laptop
+            # Chassis: laptop
+            # Machine ID: 84e3c8e37e114ac9bc9f69689b49cfaa
+            # Boot ID: 19cf3572e1634e778b5d494d9c1af6e9
+            # Operating System: Arch Linux
+            # Kernel: Linux 4.10.13-1-ARCH
+            # Architecture: x86-64
+            #
+            # [Virtual system on VirtualBox]
+            #
+            # Static hostname: ubuntuserver
+            # Icon name: computer-vm
+            # Chassis: vm
+            # Machine ID: 2befe86cf8887ba098b509e457554beb
+            # Boot ID: 8021c02d65dc46a1885afb25dddcf18c
+            # Virtualization: oracle
+            # Operating System: Ubuntu 16.04.1 LTS
+            # Kernel: Linux 4.4.0-78-generic
+            # Architecture: x86-64
+            #
+            # [Virtual system on KVM/QEMU]
+            #
+            # Static hostname: centos8uefi.ostechnix.lan
+            # Icon name: computer-vm
+            # Chassis: vm
+            # Machine ID: de4100c4632e4c098dcfbbde29170268
+            # Boot ID: 6136783bb9c241d08c8901aeecc7c30d
+            # Virtualization: kvm
+            # Operating System: CentOS Linux 8 (Core)
+            # CPE OS Name: cpe:/o:centos:centos:8
+            # Kernel: Linux 4.18.0-80.el8.x86_64
+            # Architecture: x86-64
+            #
+            #
+
+            else:
+                return False
+
+        elif(os_info.os_name() == "Windows"):
+            #in a VirtualBox virtual machine wich runs Windows the command systeminfo returns under BIOS Version innotek GmbH VirtualBox
+            if("innotek GmbH VirtualBox" in str(subprocess.check_output("systeminfo"))):
+                return True
+            elif("0" == str(bios.serial_number()).lower().replace("serialnumber", "").strip("\n")):
+                return True
+            elif("innotek gmbh" in str(device_info.computer_manufacturer()).lower()):
+                return True
+            elif ("virtualbox" in str(device_info.model()).lower()):
+                return True
+            else:
+                return False
+
+    def basebord_manufactur():
+        return str(subprocess.check_output("sudo dmidecode -s baseboard-manufacturer"))
+
+class bios():
+    def serial_number():
+        return subprocess.check_output("wmic bios get serialnumber")
 
 class cpu_info():
     def processor_name():
@@ -191,6 +377,12 @@ class system():
 
     def systeminfo():
         return str(subprocess.check_output("systeminfo"), "utf-8")
+
+    def system_version():
+        return str(subprocess.check_output("sudo dmidecode -s system-version"))
+
+    def basebord_version():
+        return str(subprocess.check_output("sudo dmidecode -s baseboard-version"))
 
 class disk_info():
     def get_disk():
